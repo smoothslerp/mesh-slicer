@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using System;
 
 public class MeshSlicer : MonoBehaviour {
     public class Triangle {
@@ -26,7 +27,6 @@ public class MeshSlicer : MonoBehaviour {
     }
 
     private List<Vector3> interiorFacePoints;
-    private List<Vector3> interiorFacePointsAfter;
     private Vector3 interiorFaceCenter;
     private List<Triangle> interiorFaceTriangles;
     MeshFilter meshfilter;
@@ -116,10 +116,6 @@ public class MeshSlicer : MonoBehaviour {
     protected void DrawInteriorFaces(Vector3 normal) {
         if (this.interiorFacePoints == null) return;
         if (this.interiorFacePoints.Count < 3) return;
-
-        interiorFacePointsAfter = new List<Vector3>();
-        interiorFacePointsAfter.Add(this.interiorFaceCenter);
-
         if (interiorFaceTriangles == null) interiorFaceTriangles = new List<Triangle>();
         
         for (int i = 0; i < this.interiorFacePoints.Count; i+=2) {
@@ -207,30 +203,42 @@ public class MeshSlicer : MonoBehaviour {
 
     void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normal) { 
 
-        List<Vector3> vertices = new List<Vector3>(this.meshfilter.mesh.vertices);
-        List<Vector3> normals = new List<Vector3>(this.meshfilter.mesh.normals);
+        Vector3[] vertices = this.meshfilter.mesh.vertices;
+        Vector3[] normals = this.meshfilter.mesh.normals;
+        int[] triangles = this.meshfilter.mesh.triangles;
+
+        // get current last element index in each array
+        int vertexIndex = vertices.Length-1;
+        int normalIndex = normals.Length-1;
+        int trianglesIndex = triangles.Length-1;
+        // resize arrays (creates new arrays)
+        Array.Resize<Vector3>(ref vertices, vertices.Length+3);
+        Array.Resize<Vector3>(ref normals, normals.Length+3);
+        Array.Resize<int>(ref triangles, triangles.Length+3);
+
+
         if (Vector3.Dot(normal, Vector3.Cross(b - a, b-c)) < 0) {
-            vertices.Add(a);
-            vertices.Add(b);
-            vertices.Add(c);
+            vertices[++vertexIndex] = a;
+            vertices[++vertexIndex] = b;
+            vertices[++vertexIndex] = c;
         } else {
-            vertices.Add(a);
-            vertices.Add(c);
-            vertices.Add(b);
+            vertices[++vertexIndex] = a;
+            vertices[++vertexIndex] = c;
+            vertices[++vertexIndex] = b;
         }
 
-        normals.Add(normal);
-        normals.Add(normal);
-        normals.Add(normal);
+        normals[++normalIndex] = normal;
+        normals[++normalIndex] = normal;
+        normals[++normalIndex] = normal;
         
-        List<int> triangles = new List<int>(this.meshfilter.mesh.triangles);
-        triangles.Add(vertices.Count-3);
-        triangles.Add(vertices.Count-2);
-        triangles.Add(vertices.Count-1);
+        triangles[++trianglesIndex] = vertexIndex-2;
+        triangles[++trianglesIndex] = vertexIndex-1;
+        triangles[++trianglesIndex] = vertexIndex;
 
-        meshfilter.mesh.vertices = vertices.ToArray();
-        meshfilter.mesh.normals = normals.ToArray();
-        meshfilter.mesh.triangles = triangles.ToArray();
+        // reassign arrays
+        meshfilter.mesh.vertices = vertices;
+        meshfilter.mesh.normals = normals;
+        meshfilter.mesh.triangles = triangles;
     }
 
     public void AddTriangle(Triangle t) {
@@ -291,12 +299,6 @@ public class MeshSlicer : MonoBehaviour {
                     Gizmos.DrawCube(this.transform.position + this.interiorFacePoints[i], new Vector3(.05f, .05f, .05f));
                 }
 
-                if (this.interiorFacePointsAfter != null) {
-                    Gizmos.color = Color.red;
-                    for (int i = 0; i < this.interiorFacePointsAfter.Count; i++) {
-                        Gizmos.DrawCube(this.transform.position + this.interiorFacePointsAfter[i], new Vector3(.05f, .05f, .05f));
-                    }
-                }
                 break;
             case DebugOption.DRAW_NORMALS:
                 for (int i = 0; i < this.meshfilter.mesh.vertexCount; i++) {

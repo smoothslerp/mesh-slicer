@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
-using System.Diagnostics;
+﻿using UnityEngine;
+using System.Collections.Generic;
 
 public class MeshSlicer : MonoBehaviour {
     public class Triangle {
@@ -28,6 +27,7 @@ public class MeshSlicer : MonoBehaviour {
 
     private List<Vector3> interiorFacePoints;
     private List<Vector3> interiorFacePointsAfter;
+    private Vector3 interiorFaceCenter;
     private List<Triangle> interiorFaceTriangles;
     MeshFilter meshfilter;
     Renderer meshRenderer;
@@ -38,7 +38,6 @@ public class MeshSlicer : MonoBehaviour {
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
         this.meshRenderer = this.GetComponent<MeshRenderer>();
-        
     }
 
     void AssignFilterAndRenderer(MeshFilter meshFilter, MeshRenderer renderer) {
@@ -66,7 +65,6 @@ public class MeshSlicer : MonoBehaviour {
         // leftMeshCollider.convex = true;
         // left.AddComponent<Rigidbody>();
 
-        
         MeshFilter rightMF = right.AddComponent<MeshFilter>();
         MeshRenderer rightRenderer = right.AddComponent<MeshRenderer>();
         rightRenderer.material = meshRenderer.material;
@@ -79,9 +77,6 @@ public class MeshSlicer : MonoBehaviour {
 
         leftSlicer.AssignFilterAndRenderer(leftMF, leftRenderer);
         rightSlicer.AssignFilterAndRenderer(rightMF, rightRenderer);
-
-        Stopwatch stopWatch = new Stopwatch();
-        stopWatch.Start();
 
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
@@ -96,11 +91,24 @@ public class MeshSlicer : MonoBehaviour {
                 bool cPosSide = plane.GetSide(meshfilter.mesh.vertices[c]);
 
                 if (aPosSide && bPosSide && cPosSide) {
-                    rightSlicer.AddTriangle(meshfilter.mesh.vertices[a],  meshfilter.mesh.vertices[b], meshfilter.mesh.vertices[c], meshfilter.mesh.normals[a]);
+                    rightSlicer.AddTriangle(meshfilter.mesh.vertices[a], 
+                                            meshfilter.mesh.vertices[b],
+                                            meshfilter.mesh.vertices[c],
+                                            meshfilter.mesh.normals[a]);
+
                 } else if (!aPosSide && !bPosSide && !cPosSide) {
-                    leftSlicer.AddTriangle(meshfilter.mesh.vertices[a], meshfilter.mesh.vertices[b], meshfilter.mesh.vertices[c], meshfilter.mesh.normals[a]);
+                    leftSlicer.AddTriangle(meshfilter.mesh.vertices[a],
+                                            meshfilter.mesh.vertices[b],
+                                            meshfilter.mesh.vertices[c],
+                                            meshfilter.mesh.normals[a]);
+
                 } else {
-                    this.CutTriangle(a, aPosSide, b, bPosSide, c, cPosSide, pointOnPlane, plane, leftSlicer, rightSlicer);
+                    this.CutTriangle(a, aPosSide,
+                                        b, bPosSide,
+                                        c, cPosSide,
+                                        pointOnPlane,
+                                        plane,
+                                        leftSlicer, rightSlicer);
                 }
             }
         }
@@ -119,17 +127,13 @@ public class MeshSlicer : MonoBehaviour {
         if (this.interiorFacePoints == null) return;
         if (this.interiorFacePoints.Count < 3) return;
 
-        Vector3 center = new Vector3();
-        foreach(Vector3 point in interiorFacePoints) {
-            center += point;
-        }
-
-        center /= interiorFacePoints.Count;
         interiorFacePointsAfter = new List<Vector3>();
-        interiorFacePointsAfter.Add(center);
+        interiorFacePointsAfter.Add(this.interiorFaceCenter);
+
         if (interiorFaceTriangles == null) interiorFaceTriangles = new List<Triangle>();
+        
         for (int i = 0; i < this.interiorFacePoints.Count; i+=2) {
-            Triangle t = new Triangle(center, this.interiorFacePoints[i], this.interiorFacePoints[i+1], normal);
+            Triangle t = new Triangle(this.interiorFaceCenter, this.interiorFacePoints[i], this.interiorFacePoints[i+1], normal);
             interiorFaceTriangles.Add(t);
             AddTriangle(t);
         }
@@ -199,12 +203,19 @@ public class MeshSlicer : MonoBehaviour {
         }
 
         if (right.interiorFacePoints == null) right.interiorFacePoints = new List<Vector3>();
-        right.interiorFacePoints.Add(i1);
-        right.interiorFacePoints.Add(i2);
+        right.AddToInteriorFacePoints(i1);
+        right.AddToInteriorFacePoints(i2);
 
         if (left.interiorFacePoints == null) left.interiorFacePoints = new List<Vector3>();
-        left.interiorFacePoints.Add(i1);
-        left.interiorFacePoints.Add(i2);
+        left.AddToInteriorFacePoints(i1);
+        left.AddToInteriorFacePoints(i2);
+    }
+
+    public void AddToInteriorFacePoints(Vector3 p) {
+        // rolling average
+        Vector3 temp = this.interiorFacePoints.Count * this.interiorFaceCenter;
+        this.interiorFacePoints.Add(p);
+        this.interiorFaceCenter = (temp + p)/this.interiorFacePoints.Count;
     }
 
     Mesh GetMesh() {
@@ -257,7 +268,7 @@ public class MeshSlicer : MonoBehaviour {
         Gizmos.DrawRay(t.b, BC);
     }
 
-    private void OnDrawGizmosAdokako() {
+    private void OnDrawGizmos() {
         if (this.meshfilter == null) return;
 
         switch(this.debugOption) {

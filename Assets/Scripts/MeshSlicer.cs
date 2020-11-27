@@ -21,9 +21,8 @@ public class MeshSlicer : MonoBehaviour {
         NONE,
         DRAW_NORMALS,
         DRAW_VERTICES,
-        DRAW_INTERIOR_POLYGON_VERTICES,
+        DRAW_INTERIOR_FACE_VERTICES,
         DRAW_INTERIOR_FACES,
-        DRAW_COLORIZED_VERTICES
     }
 
     private List<Vector3> interiorFacePoints;
@@ -33,8 +32,6 @@ public class MeshSlicer : MonoBehaviour {
     Renderer meshRenderer;
     public DebugOption debugOption = DebugOption.NONE;
 
-
-    // Start is called before the first frame update
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
         this.meshRenderer = this.GetComponent<MeshRenderer>();
@@ -61,8 +58,8 @@ public class MeshSlicer : MonoBehaviour {
         rightMF.mesh = new Mesh();
 
         // give left and right new mesh slicers
-        MeshSlicer leftSlicer = left.AddComponent<MeshSlicer>();
-        MeshSlicer rightSlicer = right.AddComponent<MeshSlicer>();
+        MeshSlicer leftSlicer = left.GetComponent<MeshSlicer>();
+        MeshSlicer rightSlicer = right.GetComponent<MeshSlicer>();
 
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
@@ -123,7 +120,6 @@ public class MeshSlicer : MonoBehaviour {
             interiorFaceTriangles.Add(t);
             AddTriangle(t);
         }
-
     }
 
     protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 pointOnPlane, Plane p, MeshSlicer left, MeshSlicer right) {
@@ -160,8 +156,8 @@ public class MeshSlicer : MonoBehaviour {
         
         Vector3 p0MinusL0 = (pointOnPlane-loneVertex);
         
-        Vector3 line1 = (p1 - loneVertex);
-        Vector3 line2 = (p2 - loneVertex);
+        Vector3 line1 = p1 - loneVertex;
+        Vector3 line2 = p2 - loneVertex;
 
         float p0MinusL0DotN = Vector3.Dot(p0MinusL0, p.normal);
         float d1 = p0MinusL0DotN / Vector3.Dot(line1, p.normal);
@@ -246,16 +242,14 @@ public class MeshSlicer : MonoBehaviour {
     }
 
     private void DrawTriangle(Triangle t) {
+        Gizmos.color = Color.red;
 
         Vector3 AB = t.b - t.a;
         Vector3 AC = t.c - t.a;
         Vector3 BC = t.c - t.b;
 
-        Gizmos.color = Color.red;
         Gizmos.DrawRay(t.a, AB);
-        Gizmos.color = Color.green;
         Gizmos.DrawRay(t.a, AC);
-        Gizmos.color = Color.blue;
         Gizmos.DrawRay(t.b, BC);
     }
 
@@ -272,27 +266,12 @@ public class MeshSlicer : MonoBehaviour {
                 }
             }
             break;
-            case DebugOption.DRAW_COLORIZED_VERTICES:
-                int[] triangles = this.meshfilter.mesh.GetTriangles(0);
-                for (int i = 0; i < triangles.Length; i+=3) {
-                    int a = triangles[i];
-                    int b = triangles[i+1];
-                    int c = triangles[i+2];
-
-                    Gizmos.color = Color.red;
-                    Gizmos.DrawRay(this.transform.position + this.meshfilter.mesh.vertices[a], this.meshfilter.mesh.normals[a] * .2f);                
-                    Gizmos.color = Color.green;
-                    Gizmos.DrawRay(this.transform.position + this.meshfilter.mesh.vertices[b], this.meshfilter.mesh.normals[b] * .2f);                
-                    Gizmos.color = Color.blue;
-                    Gizmos.DrawRay(this.transform.position + this.meshfilter.mesh.vertices[c], this.meshfilter.mesh.normals[c] * .2f);                
-                }
-                break;
             case DebugOption.DRAW_VERTICES:
                 for (int i = 0; i < this.meshfilter.mesh.vertexCount; i++) {
                     Gizmos.DrawCube(this.transform.position + this.meshfilter.mesh.vertices[i], new Vector3(.05f, .05f, .05f));
                 }
                 break;
-            case DebugOption.DRAW_INTERIOR_POLYGON_VERTICES:
+            case DebugOption.DRAW_INTERIOR_FACE_VERTICES:
                 if (this.interiorFacePoints == null) return;
                 Gizmos.color = Color.white;
                 for (int i = 0; i < this.interiorFacePoints.Count; i++) {
@@ -311,5 +290,4 @@ public class MeshSlicer : MonoBehaviour {
                 return;
         }
     }
-
 }

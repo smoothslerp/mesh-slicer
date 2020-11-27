@@ -47,36 +47,22 @@ public class MeshSlicer : MonoBehaviour {
 
     public void Slice(Plane plane, Vector3 pointOnPlane) { 
 
-        GameObject left = new GameObject();
-        GameObject right = new GameObject();
+        GameObject left = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
+        GameObject right = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
 
         left.transform.name = "left";
         right.transform.name = "right";
-        left.transform.position = this.transform.position;
-        right.transform.position = this.transform.position;
         
-        // TODO: Can probably do this cleaner, was having a problem with gameobject.instantiate since it was not making a deep copy of the 
-        // underlying components
-        MeshFilter leftMF = left.AddComponent<MeshFilter>();
+        // reset left mesh
+        MeshFilter leftMF = left.GetComponent<MeshFilter>();
+        leftMF.mesh = new Mesh();
+        // reset right mesh
+        MeshFilter rightMF = right.GetComponent<MeshFilter>();
+        rightMF.mesh = new Mesh();
 
-        MeshRenderer leftRenderer = left.AddComponent<MeshRenderer>();
-        leftRenderer.material = meshRenderer.material;
-        MeshCollider leftMeshCollider = left.AddComponent<MeshCollider>();
-        // leftMeshCollider.convex = true;
-        // left.AddComponent<Rigidbody>();
-
-        MeshFilter rightMF = right.AddComponent<MeshFilter>();
-        MeshRenderer rightRenderer = right.AddComponent<MeshRenderer>();
-        rightRenderer.material = meshRenderer.material;
-        MeshCollider rightMeshCollider = right.AddComponent<MeshCollider>();
-        // rightMeshCollider.convex = true;
-        // right.AddComponent<Rigidbody>();
-
+        // give left and right new mesh slicers
         MeshSlicer leftSlicer = left.AddComponent<MeshSlicer>();
         MeshSlicer rightSlicer = right.AddComponent<MeshSlicer>();
-
-        leftSlicer.AssignFilterAndRenderer(leftMF, leftRenderer);
-        rightSlicer.AssignFilterAndRenderer(rightMF, rightRenderer);
 
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
@@ -117,9 +103,13 @@ public class MeshSlicer : MonoBehaviour {
         leftSlicer.DrawInteriorFaces(plane.normal);
         rightSlicer.DrawInteriorFaces(-plane.normal);
 
-        leftMeshCollider.sharedMesh = leftSlicer.GetMesh();
-        rightMeshCollider.sharedMesh = rightSlicer.GetMesh();
+        // update collider mesh for collisions
+        MeshCollider leftMeshCollider = left.GetComponent<MeshCollider>();
+        MeshCollider rightMeshCollider = right.GetComponent<MeshCollider>();
+        leftMeshCollider.sharedMesh = leftSlicer.meshfilter.mesh;
+        rightMeshCollider.sharedMesh = rightSlicer.meshfilter.mesh;
 
+        // destroy current game object
         Destroy(this.gameObject);
     }
 
@@ -184,10 +174,7 @@ public class MeshSlicer : MonoBehaviour {
         Vector3 i1 = loneVertex + line1*d1;
         Vector3 i2 = loneVertex + line2*d2;
 
-        Vector3 offset = this.transform.position;
-        // Debug.DrawRay(loneVertex, line1*d1, Color.magenta, 5f);
-        // Debug.DrawRay(loneVertex, line2*d2, Color.green, 5f);
-
+        // Vector3 offset = this.transform.position;
         Triangle t1 = new Triangle(loneVertex, i2, i1, normal);
         Triangle t2 = new Triangle(p1, i1, i2, normal);
         Triangle t3 = new Triangle(p1, i2, p2, normal);
@@ -216,10 +203,6 @@ public class MeshSlicer : MonoBehaviour {
         Vector3 temp = this.interiorFacePoints.Count * this.interiorFaceCenter;
         this.interiorFacePoints.Add(p);
         this.interiorFaceCenter = (temp + p)/this.interiorFacePoints.Count;
-    }
-
-    Mesh GetMesh() {
-        return this.meshfilter.mesh;
     }
 
     void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normal) { 

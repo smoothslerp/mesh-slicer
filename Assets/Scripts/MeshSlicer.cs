@@ -33,49 +33,29 @@ public class MeshSlicer : MonoBehaviour {
     public DebugOption debugOption = DebugOption.NONE;
 
 
-    // Start is called before the first frame update
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
         this.meshRenderer = this.GetComponent<MeshRenderer>();
     }
 
-    void AssignFilterAndRenderer(MeshFilter meshFilter, MeshRenderer renderer) {
-        this.meshfilter = meshFilter;
-        this.meshRenderer = renderer;
-    }
+    public void Slice(Plane plane, Vector3 pointOnPlane) {
 
-    public void Slice(Plane plane, Vector3 pointOnPlane) { 
-
-        GameObject left = new GameObject();
-        GameObject right = new GameObject();
+        GameObject left = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
+        GameObject right = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
 
         left.transform.name = "left";
         right.transform.name = "right";
-        left.transform.position = this.transform.position;
-        right.transform.position = this.transform.position;
         
-        // TODO: Can probably do this cleaner, was having a problem with gameobject.instantiate since it was not making a deep copy of the 
-        // underlying components
-        MeshFilter leftMF = left.AddComponent<MeshFilter>();
+        // reset left mesh
+        MeshFilter leftMF = left.GetComponent<MeshFilter>();
+        leftMF.mesh = new Mesh();
+        // reset right mesh
+        MeshFilter rightMF = right.GetComponent<MeshFilter>();
+        rightMF.mesh = new Mesh();
 
-        MeshRenderer leftRenderer = left.AddComponent<MeshRenderer>();
-        leftRenderer.material = meshRenderer.material;
-        MeshCollider leftMeshCollider = left.AddComponent<MeshCollider>();
-        // leftMeshCollider.convex = true;
-        // left.AddComponent<Rigidbody>();
-
-        MeshFilter rightMF = right.AddComponent<MeshFilter>();
-        MeshRenderer rightRenderer = right.AddComponent<MeshRenderer>();
-        rightRenderer.material = meshRenderer.material;
-        MeshCollider rightMeshCollider = right.AddComponent<MeshCollider>();
-        // rightMeshCollider.convex = true;
-        // right.AddComponent<Rigidbody>();
-
-        MeshSlicer leftSlicer = left.AddComponent<MeshSlicer>();
-        MeshSlicer rightSlicer = right.AddComponent<MeshSlicer>();
-
-        leftSlicer.AssignFilterAndRenderer(leftMF, leftRenderer);
-        rightSlicer.AssignFilterAndRenderer(rightMF, rightRenderer);
+        // give left and right new mesh slicers
+        MeshSlicer leftSlicer = left.GetComponent<MeshSlicer>();
+        MeshSlicer rightSlicer = right.GetComponent<MeshSlicer>();
 
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
@@ -116,9 +96,13 @@ public class MeshSlicer : MonoBehaviour {
         leftSlicer.DrawInteriorFaces(plane.normal);
         rightSlicer.DrawInteriorFaces(-plane.normal);
 
-        leftMeshCollider.sharedMesh = leftSlicer.GetMesh();
-        rightMeshCollider.sharedMesh = rightSlicer.GetMesh();
+        // update collider mesh for collisions
+        MeshCollider leftMeshCollider = left.GetComponent<MeshCollider>();
+        MeshCollider rightMeshCollider = right.GetComponent<MeshCollider>();
+        leftMeshCollider.sharedMesh = leftSlicer.meshfilter.mesh;
+        rightMeshCollider.sharedMesh = rightSlicer.meshfilter.mesh;
 
+        // destroy current game object
         Destroy(this.gameObject);
     }
 
@@ -210,10 +194,6 @@ public class MeshSlicer : MonoBehaviour {
         this.interiorFaceCenter += p;
     }
 
-    Mesh GetMesh() {
-        return this.meshfilter.mesh;
-    }
-
     void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normal) { 
 
         Vector3[] vertices = this.meshfilter.mesh.vertices;
@@ -262,9 +242,7 @@ public class MeshSlicer : MonoBehaviour {
 
         Gizmos.color = Color.red;
         Gizmos.DrawRay(t.a, AB);
-        Gizmos.color = Color.green;
         Gizmos.DrawRay(t.a, AC);
-        Gizmos.color = Color.blue;
         Gizmos.DrawRay(t.b, BC);
     }
 

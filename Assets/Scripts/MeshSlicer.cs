@@ -32,6 +32,8 @@ public class MeshSlicer : MonoBehaviour {
     Renderer meshRenderer;
     public DebugOption debugOption = DebugOption.NONE;
 
+
+    // Start is called before the first frame update
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
         this.meshRenderer = this.GetComponent<MeshRenderer>();
@@ -44,22 +46,36 @@ public class MeshSlicer : MonoBehaviour {
 
     public void Slice(Plane plane, Vector3 pointOnPlane) { 
 
-        GameObject left = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
-        GameObject right = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
+        GameObject left = new GameObject();
+        GameObject right = new GameObject();
 
         left.transform.name = "left";
         right.transform.name = "right";
+        left.transform.position = this.transform.position;
+        right.transform.position = this.transform.position;
         
-        // reset left mesh
-        MeshFilter leftMF = left.GetComponent<MeshFilter>();
-        leftMF.mesh = new Mesh();
-        // reset right mesh
-        MeshFilter rightMF = right.GetComponent<MeshFilter>();
-        rightMF.mesh = new Mesh();
+        // TODO: Can probably do this cleaner, was having a problem with gameobject.instantiate since it was not making a deep copy of the 
+        // underlying components
+        MeshFilter leftMF = left.AddComponent<MeshFilter>();
 
-        // give left and right new mesh slicers
-        MeshSlicer leftSlicer = left.GetComponent<MeshSlicer>();
-        MeshSlicer rightSlicer = right.GetComponent<MeshSlicer>();
+        MeshRenderer leftRenderer = left.AddComponent<MeshRenderer>();
+        leftRenderer.material = meshRenderer.material;
+        MeshCollider leftMeshCollider = left.AddComponent<MeshCollider>();
+        // leftMeshCollider.convex = true;
+        // left.AddComponent<Rigidbody>();
+
+        MeshFilter rightMF = right.AddComponent<MeshFilter>();
+        MeshRenderer rightRenderer = right.AddComponent<MeshRenderer>();
+        rightRenderer.material = meshRenderer.material;
+        MeshCollider rightMeshCollider = right.AddComponent<MeshCollider>();
+        // rightMeshCollider.convex = true;
+        // right.AddComponent<Rigidbody>();
+
+        MeshSlicer leftSlicer = left.AddComponent<MeshSlicer>();
+        MeshSlicer rightSlicer = right.AddComponent<MeshSlicer>();
+
+        leftSlicer.AssignFilterAndRenderer(leftMF, leftRenderer);
+        rightSlicer.AssignFilterAndRenderer(rightMF, rightRenderer);
 
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
@@ -100,20 +116,20 @@ public class MeshSlicer : MonoBehaviour {
         leftSlicer.DrawInteriorFaces(plane.normal);
         rightSlicer.DrawInteriorFaces(-plane.normal);
 
-        // update collider mesh for collisions
-        MeshCollider leftMeshCollider = left.GetComponent<MeshCollider>();
-        MeshCollider rightMeshCollider = right.GetComponent<MeshCollider>();
-        leftMeshCollider.sharedMesh = leftSlicer.meshfilter.mesh;
-        rightMeshCollider.sharedMesh = rightSlicer.meshfilter.mesh;
+        leftMeshCollider.sharedMesh = leftSlicer.GetMesh();
+        rightMeshCollider.sharedMesh = rightSlicer.GetMesh();
 
-        // destroy current game object
         Destroy(this.gameObject);
     }
 
     protected void DrawInteriorFaces(Vector3 normal) {
         if (this.interiorFacePoints == null) return;
         if (this.interiorFacePoints.Count < 3) return;
+
         if (interiorFaceTriangles == null) interiorFaceTriangles = new List<Triangle>();
+
+        // average out interior face center
+        this.interiorFaceCenter /= this.interiorFacePoints.Count;
         
         for (int i = 0; i < this.interiorFacePoints.Count; i+=2) {
             Triangle t = new Triangle(this.interiorFaceCenter, this.interiorFacePoints[i], this.interiorFacePoints[i+1], normal);
@@ -122,7 +138,7 @@ public class MeshSlicer : MonoBehaviour {
         }
     }
 
-    protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 pointOnPlane, Plane p, MeshSlicer left, MeshSlicer right) {
+    protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 hitPoint, Plane p, MeshSlicer left, MeshSlicer right) {
         int loneIdx = -1;
         bool lonePlaneSide = false;
         int p1Idx = -1;
@@ -154,10 +170,10 @@ public class MeshSlicer : MonoBehaviour {
         Vector3 p1 = this.meshfilter.mesh.vertices[p1Idx];
         Vector3 p2 = this.meshfilter.mesh.vertices[p2Idx];
         
-        Vector3 p0MinusL0 = (pointOnPlane-loneVertex);
+        Vector3 p0MinusL0 = (hitPoint-loneVertex);
         
-        Vector3 line1 = p1 - loneVertex;
-        Vector3 line2 = p2 - loneVertex;
+        Vector3 line1 = (p1 - loneVertex);
+        Vector3 line2 = (p2 - loneVertex);
 
         float p0MinusL0DotN = Vector3.Dot(p0MinusL0, p.normal);
         float d1 = p0MinusL0DotN / Vector3.Dot(line1, p.normal);
@@ -166,7 +182,6 @@ public class MeshSlicer : MonoBehaviour {
         Vector3 i1 = loneVertex + line1*d1;
         Vector3 i2 = loneVertex + line2*d2;
 
-        // Vector3 offset = this.transform.position;
         Triangle t1 = new Triangle(loneVertex, i2, i1, normal);
         Triangle t2 = new Triangle(p1, i1, i2, normal);
         Triangle t3 = new Triangle(p1, i2, p2, normal);
@@ -191,10 +206,12 @@ public class MeshSlicer : MonoBehaviour {
     }
 
     public void AddToInteriorFacePoints(Vector3 p) {
-        // rolling average
-        Vector3 temp = this.interiorFacePoints.Count * this.interiorFaceCenter;
         this.interiorFacePoints.Add(p);
-        this.interiorFaceCenter = (temp + p)/this.interiorFacePoints.Count;
+        this.interiorFaceCenter += p;
+    }
+
+    Mesh GetMesh() {
+        return this.meshfilter.mesh;
     }
 
     void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normal) { 
@@ -203,15 +220,12 @@ public class MeshSlicer : MonoBehaviour {
         Vector3[] normals = this.meshfilter.mesh.normals;
         int[] triangles = this.meshfilter.mesh.triangles;
 
-        // get current last element index in each array
         int vertexIndex = vertices.Length-1;
-        int normalIndex = normals.Length-1;
-        int trianglesIndex = triangles.Length-1;
-        // resize arrays (creates new arrays)
+        int normalIndex = vertices.Length-1;
+        int triangleIndex = triangles.Length-1;
         Array.Resize<Vector3>(ref vertices, vertices.Length+3);
         Array.Resize<Vector3>(ref normals, normals.Length+3);
         Array.Resize<int>(ref triangles, triangles.Length+3);
-
 
         if (Vector3.Dot(normal, Vector3.Cross(b - a, b-c)) < 0) {
             vertices[++vertexIndex] = a;
@@ -227,11 +241,10 @@ public class MeshSlicer : MonoBehaviour {
         normals[++normalIndex] = normal;
         normals[++normalIndex] = normal;
         
-        triangles[++trianglesIndex] = vertexIndex-2;
-        triangles[++trianglesIndex] = vertexIndex-1;
-        triangles[++trianglesIndex] = vertexIndex;
+        triangles[++triangleIndex] = vertexIndex-2;
+        triangles[++triangleIndex] = vertexIndex-1;
+        triangles[++triangleIndex] = vertexIndex;
 
-        // reassign arrays
         meshfilter.mesh.vertices = vertices;
         meshfilter.mesh.normals = normals;
         meshfilter.mesh.triangles = triangles;
@@ -242,14 +255,16 @@ public class MeshSlicer : MonoBehaviour {
     }
 
     private void DrawTriangle(Triangle t) {
-        Gizmos.color = Color.red;
 
         Vector3 AB = t.b - t.a;
         Vector3 AC = t.c - t.a;
         Vector3 BC = t.c - t.b;
 
+        Gizmos.color = Color.red;
         Gizmos.DrawRay(t.a, AB);
+        Gizmos.color = Color.green;
         Gizmos.DrawRay(t.a, AC);
+        Gizmos.color = Color.blue;
         Gizmos.DrawRay(t.b, BC);
     }
 
@@ -290,4 +305,5 @@ public class MeshSlicer : MonoBehaviour {
                 return;
         }
     }
+
 }

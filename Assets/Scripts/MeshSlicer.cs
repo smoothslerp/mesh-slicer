@@ -149,24 +149,24 @@ public class MeshSlicer : MonoBehaviour {
         }
         
         // d = (p0-l0).n / l . n
-        Vector3 loneVertex = this.meshfilter.mesh.vertices[loneIdx];
         Vector3 normal = this.meshfilter.mesh.normals[loneIdx];
+        Vector3 p0 = this.meshfilter.mesh.vertices[loneIdx];
         Vector3 p1 = this.meshfilter.mesh.vertices[p1Idx];
         Vector3 p2 = this.meshfilter.mesh.vertices[p2Idx];
         
-        Vector3 p0MinusL0 = (hitPoint-loneVertex);
+        Vector3 p0MinusL0 = (hitPoint-p0);
         
-        Vector3 line1 = (p1 - loneVertex);
-        Vector3 line2 = (p2 - loneVertex);
+        Vector3 line1 = (p1 - p0);
+        Vector3 line2 = (p2 - p0);
 
         float p0MinusL0DotN = Vector3.Dot(p0MinusL0, p.normal);
         float d1 = p0MinusL0DotN / Vector3.Dot(line1, p.normal);
         float d2 = p0MinusL0DotN / Vector3.Dot(line2, p.normal);
 
-        Vector3 i1 = loneVertex + line1*d1;
-        Vector3 i2 = loneVertex + line2*d2;
+        Vector3 i1 = p0 + line1*d1;
+        Vector3 i2 = p0 + line2*d2;
 
-        Triangle t1 = new Triangle(loneVertex, i2, i1, normal);
+        Triangle t1 = new Triangle(p0, i2, i1, normal);
         Triangle t2 = new Triangle(p1, i1, i2, normal);
         Triangle t3 = new Triangle(p1, i2, p2, normal);
                                     
@@ -207,7 +207,7 @@ public class MeshSlicer : MonoBehaviour {
         Array.Resize<Vector3>(ref normals, normals.Length+3);
         Array.Resize<int>(ref triangles, triangles.Length+3);
 
-        if (Vector3.Dot(normal, Vector3.Cross(b - a, b-c)) < 0) {
+        if (Vector3.Dot(normal, Vector3.Cross(b-a, c-b)) > 0) {
             vertices[++vertexIndex] = a;
             vertices[++vertexIndex] = b;
             vertices[++vertexIndex] = c;
@@ -248,12 +248,12 @@ public class MeshSlicer : MonoBehaviour {
 
     private void OnDrawGizmos() {
         if (this.meshfilter == null) return;
+            Vector3 offset = this.transform.position;
 
         switch(this.debugOption) {
             case DebugOption.DRAW_INTERIOR_FACES:
                 if (interiorFaceTriangles != null) {
                 for (int i = 0;  i < interiorFaceTriangles.Count; i++) {
-                    Vector3 offset = this.transform.position;
                     Triangle t = new Triangle(offset + interiorFaceTriangles[i].a, offset + interiorFaceTriangles[i].b, offset + interiorFaceTriangles[i].c, Vector3.zero);
                     DrawTriangle(t);
                 }
@@ -261,21 +261,21 @@ public class MeshSlicer : MonoBehaviour {
             break;
             case DebugOption.DRAW_VERTICES:
                 for (int i = 0; i < this.meshfilter.mesh.vertexCount; i++) {
-                    Gizmos.DrawCube(this.transform.position + this.meshfilter.mesh.vertices[i], new Vector3(.05f, .05f, .05f));
+                    Gizmos.DrawCube(offset + this.meshfilter.mesh.vertices[i], new Vector3(.05f, .05f, .05f));
                 }
                 break;
             case DebugOption.DRAW_INTERIOR_FACE_VERTICES:
                 if (this.interiorFacePoints == null) return;
                 Gizmos.color = Color.white;
                 for (int i = 0; i < this.interiorFacePoints.Count; i++) {
-                    Gizmos.DrawCube(this.transform.position + this.interiorFacePoints[i], new Vector3(.05f, .05f, .05f));
+                    Gizmos.DrawCube(offset + this.interiorFacePoints[i], new Vector3(.05f, .05f, .05f));
                 }
 
                 break;
             case DebugOption.DRAW_NORMALS:
                 for (int i = 0; i < this.meshfilter.mesh.vertexCount; i++) {
                     Gizmos.color = Color.blue;
-                    Gizmos.DrawRay(this.transform.position + this.meshfilter.mesh.vertices[i], this.meshfilter.mesh.normals[i] * .3f);
+                    Gizmos.DrawRay(offset + this.meshfilter.mesh.vertices[i], this.meshfilter.mesh.normals[i] * .3f);
                 }
                 break;
             case DebugOption.NONE:

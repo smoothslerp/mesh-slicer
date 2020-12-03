@@ -3,13 +3,15 @@ using UnityEngine.SceneManagement;
 
 public class MouseInputDebug : MonoBehaviour {
     MeshSlicer slicerInstance;
+    
+    // the length of the raycast
     public int length;
-
+    // 2 rays and a point to define a plane we will be cutting across
     Vector3 hitPoint;
-    // these 2 rays define the plane
     Ray start;
     Ray end;
     bool hitStarted = false;
+    bool overwrite = true;
 
     void Update() {
         
@@ -19,6 +21,7 @@ public class MouseInputDebug : MonoBehaviour {
 
         if (Input.GetMouseButtonDown(0)) {
             // allow the overwriting of start and end rays (start again)
+            overwrite = true;
             hitStarted = false; 
         }
         
@@ -30,10 +33,11 @@ public class MouseInputDebug : MonoBehaviour {
 
             // keep updating the start ray so that we have the latest start ray right 
             // before we start hitting something
-            if (!hitSomething && !hitStarted) start = inputRay;
+            if (!hitSomething && !hitStarted && overwrite) start = inputRay;
             
             // we've hit something, so we record the point at which the object was hit
             if (hitSomething && !hitStarted) { 
+                overwrite = false;
                 hitStarted = true;
                 hitPoint = hit.point;
                 slicerInstance = hit.transform.GetComponent<MeshSlicer>();
@@ -44,16 +48,17 @@ public class MouseInputDebug : MonoBehaviour {
                 end = inputRay;
                 hitStarted = false;
                 DrawPlane(hitPoint, Vector3.Cross(start.direction, end.direction).normalized);
-                slicerInstance.Slice(new Plane(Vector3.Cross(start.direction, end.direction).normalized, hitPoint), hitPoint);
+                Vector3 offset = slicerInstance.transform.position;
+                slicerInstance.Slice(new Plane(Vector3.Cross(start.direction, end.direction).normalized, hitPoint-offset), hitPoint-offset);
             }
         }
     }
 
     private void OnDrawGizmos() {
         Gizmos.color = Color.red;
-        Gizmos.DrawRay(start.origin, start.direction);
+        Gizmos.DrawRay(start.origin, start.direction * length);
         Gizmos.color = Color.blue;
-        Gizmos.DrawRay(end.origin, end.direction);
+        Gizmos.DrawRay(end.origin, end.direction * length);
     }
 
     private void DrawPlane(Vector3 position, Vector3 normal) {
@@ -71,13 +76,13 @@ public class MouseInputDebug : MonoBehaviour {
         var corner1 = position + v3;
         var corner3 = position - v3;
         
-        Debug.DrawLine(corner0, corner2, Color.green, 3f);
-        Debug.DrawLine(corner1, corner3, Color.green, 3f);
-        Debug.DrawLine(corner0, corner1, Color.green, 3f);
-        Debug.DrawLine(corner1, corner2, Color.green, 3f);
-        Debug.DrawLine(corner2, corner3, Color.green, 3f);
-        Debug.DrawLine(corner3, corner0, Color.green, 3f);
-        Debug.DrawRay(position, normal, Color.red, 3f);
+        Debug.DrawLine(corner0, corner2, Color.green, 100f);
+        Debug.DrawLine(corner1, corner3, Color.green, 100f);
+        Debug.DrawLine(corner0, corner1, Color.green, 100f);
+        Debug.DrawLine(corner1, corner2, Color.green, 100f);
+        Debug.DrawLine(corner2, corner3, Color.green, 100f);
+        Debug.DrawLine(corner3, corner0, Color.green, 100f);
+        Debug.DrawRay(position, normal, Color.red, 100);
  }
 
 }

@@ -48,8 +48,11 @@ public class MouseInputDebug : MonoBehaviour {
                 end = inputRay;
                 hitStarted = false;
                 DrawPlane(hitPoint, Vector3.Cross(start.direction, end.direction).normalized);
-                Vector3 offset = slicerInstance.transform.position;
-                slicerInstance.Slice(new Plane(Vector3.Cross(start.direction, end.direction).normalized, hitPoint-offset), hitPoint-offset);
+                
+                Vector3 offset = -slicerInstance.transform.position;
+                Quaternion q = Quaternion.Inverse(slicerInstance.transform.rotation);
+                slicerInstance.Slice(new Plane(Vector3.Cross(q*start.direction, q*end.direction).normalized, q*(hitPoint+offset)), q*(hitPoint+offset));
+
             }
         }
     }
@@ -76,13 +79,13 @@ public class MouseInputDebug : MonoBehaviour {
         var corner1 = position + v3;
         var corner3 = position - v3;
         
-        Debug.DrawLine(corner0, corner2, Color.green, 100f);
-        Debug.DrawLine(corner1, corner3, Color.green, 100f);
-        Debug.DrawLine(corner0, corner1, Color.green, 100f);
-        Debug.DrawLine(corner1, corner2, Color.green, 100f);
-        Debug.DrawLine(corner2, corner3, Color.green, 100f);
-        Debug.DrawLine(corner3, corner0, Color.green, 100f);
-        Debug.DrawRay(position, normal, Color.red, 100);
+        Debug.DrawLine(corner0, corner2, Color.green, 3f);
+        Debug.DrawLine(corner1, corner3, Color.green, 3f);
+        Debug.DrawLine(corner0, corner1, Color.green, 3f);
+        Debug.DrawLine(corner1, corner2, Color.green, 3f);
+        Debug.DrawLine(corner2, corner3, Color.green, 3f);
+        Debug.DrawLine(corner3, corner0, Color.green, 3f);
+        Debug.DrawRay(position, normal, Color.red, 3f);
  }
 
 }

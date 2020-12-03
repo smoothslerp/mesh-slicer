@@ -40,8 +40,8 @@ public class MeshSlicer : MonoBehaviour {
 
     public void Slice(Plane plane, Vector3 pointOnPlane) {
 
-        GameObject left = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
-        GameObject right = GameObject.Instantiate(this.gameObject, this.transform.position, Quaternion.identity);
+        GameObject left = GameObject.Instantiate(this.gameObject, this.transform.position, this.transform.rotation);
+        GameObject right = GameObject.Instantiate(this.gameObject, this.transform.position, this.transform.rotation);
 
         left.transform.name = "left";
         right.transform.name = "right";

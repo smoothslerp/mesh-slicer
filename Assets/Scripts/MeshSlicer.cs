@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 using System;
+using System.Diagnostics;
 
 public class MeshSlicer : MonoBehaviour {
     public class Triangle {
@@ -81,7 +82,6 @@ public class MeshSlicer : MonoBehaviour {
         // give left and right new mesh slicers
         MeshSlicer leftSlicer = negative.GetComponent<MeshSlicer>();
         MeshSlicer rightSlicer = positive.GetComponent<MeshSlicer>();
-
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
 
@@ -274,22 +274,18 @@ public class MeshSlicer : MonoBehaviour {
         this.interiorFaceCenter += p;
     }
 
+    void AddTriangle(Triangle t, int subMeshIndex) {
+        this.AddTriangle(t.a, t.b, t.c, t.aNormal, t.bNormal, t.cNormal, t.uva, t.uvb, t.uvc, subMeshIndex);
+    }
+
     void AddTriangle(   Vector3 a, Vector3 b, Vector3 c,
                         Vector3 aNormal, Vector3 bNormal, Vector3 cNormal,
                         Vector2 uva, Vector2 uvb, Vector2 uvc,
                         int subMeshIndex) { 
         
-        Vector3 p0 = Vector3.zero;
-        Vector3 p1 = Vector3.zero;
-        Vector3 p2 = Vector3.zero;
-
-        Vector3 n0 = Vector3.zero;
-        Vector3 n1 = Vector3.zero;
-        Vector3 n2 = Vector3.zero;
-
-        Vector2 uv0 = Vector2.zero;
-        Vector2 uv1 = Vector2.zero;
-        Vector2 uv2 = Vector2.zero;
+        Vector3 p0 = Vector3.zero;  Vector3 p1 = Vector3.zero;  Vector3 p2 = Vector3.zero;
+        Vector3 n0 = Vector3.zero;  Vector3 n1 = Vector3.zero;  Vector3 n2 = Vector3.zero;
+        Vector2 uv0 = Vector2.zero; Vector2 uv1 = Vector2.zero; Vector2 uv2 = Vector2.zero;
 
         if (Vector3.Dot(aNormal, Vector3.Cross(b-a, c-b)) > 0) {
             p0 = a;     n0 = aNormal;   uv0 = uva;
@@ -301,31 +297,18 @@ public class MeshSlicer : MonoBehaviour {
             p2 = b;     n2 = bNormal;   uv2 = uvb;
         }
 
-        this.vertices.Add(p0);
-        this.vertices.Add(p1);
-        this.vertices.Add(p2);
-
-        this.normals.Add(n0);
-        this.normals.Add(n1);
-        this.normals.Add(n2);
-
-        this.uvs.Add(uv0);
-        this.uvs.Add(uv1);
-        this.uvs.Add(uv2);
+        this.vertices.Add(p0);  this.vertices.Add(p1);  this.vertices.Add(p2);
+        this.normals.Add(n0);   this.normals.Add(n1);   this.normals.Add(n2);
+        this.uvs.Add(uv0);      this.uvs.Add(uv1);      this.uvs.Add(uv2);
 
         if (!triangles.ContainsKey(subMeshIndex)) {
             this.triangles[subMeshIndex] = new List<int>();
         }
 
         List<int> subMeshTriangles = this.triangles[subMeshIndex];
-
         subMeshTriangles.Add(this.vertices.Count-3);
         subMeshTriangles.Add(this.vertices.Count-2);
         subMeshTriangles.Add(this.vertices.Count-1);
-    }
-
-    void AddTriangle(Triangle t, int subMeshIndex) {
-        this.AddTriangle(t.a, t.b, t.c, t.aNormal, t.bNormal, t.cNormal, t.uva, t.uvb, t.uvc, subMeshIndex);
     }
 
     void CommitTriangles () {
@@ -336,10 +319,15 @@ public class MeshSlicer : MonoBehaviour {
         foreach(KeyValuePair<int, List<int>> entry in this.triangles) {
             this.meshfilter.mesh.SetTriangles(entry.Value.ToArray(), entry.Key);
         }
+
+        // clear out
+        this.vertices = new List<Vector3>();
+        this.normals = new List<Vector3>();
+        this.triangles = new Dictionary<int, List<int>>();
+        this.uvs = new List<Vector2>();
     }
 
     private void DrawTriangle(Triangle t) {
-
         Vector3 AB = t.b - t.a;
         Vector3 AC = t.c - t.a;
         Vector3 BC = t.c - t.b;

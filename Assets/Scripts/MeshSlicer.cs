@@ -7,13 +7,26 @@ public class MeshSlicer : MonoBehaviour {
         public Vector3 a;
         public Vector3 b;
         public Vector3 c;
-        public Vector3 normal;
+        public Vector3 aNormal;
+        public Vector3 bNormal;
+        public Vector3 cNormal;
+        public Vector2 uva;
+        public Vector2 uvb;
+        public Vector2 uvc;
 
-        public Triangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normal) {
+        public Triangle(Vector3 a, Vector3 b, Vector3 c,
+                        Vector3 aNormal = new Vector3(), Vector3 bNormal = new Vector3(), Vector3 cNormal = new Vector3(),
+                        Vector2 uva = new Vector2(), Vector2 uvb = new Vector2(), Vector2 uvc = new Vector2()) {
+            
             this.a = a;
             this.b = b;
             this.c = c;
-            this.normal = normal;
+            this.aNormal = aNormal;
+            this.bNormal = bNormal;
+            this.cNormal = cNormal;
+            this.uva = uva;
+            this.uvb = uvb;
+            this.uvc = uvc;
         }
     }
 
@@ -30,32 +43,44 @@ public class MeshSlicer : MonoBehaviour {
     private List<Triangle> interiorFaceTriangles;
     MeshFilter meshfilter;
     Renderer meshRenderer;
+
+    List<Vector3> vertices;
+    List<Vector3> normals;
+    List<Vector2> uvs;
+    Dictionary<int, List<int>> triangles;
+
     public DebugOption debugOption = DebugOption.NONE;
+    public Material innerMaterial;
 
 
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
         this.meshRenderer = this.GetComponent<MeshRenderer>();
+
+        this.vertices = new List<Vector3>();
+        this.normals = new List<Vector3>();
+        this.uvs = new List<Vector2>();
+        this.triangles = new Dictionary<int, List<int>>();
     }
 
     public void Slice(Plane plane, Vector3 pointOnPlane) {
 
-        GameObject left = GameObject.Instantiate(this.gameObject, this.transform.position, this.transform.rotation);
-        GameObject right = GameObject.Instantiate(this.gameObject, this.transform.position, this.transform.rotation);
+        GameObject negative = GameObject.Instantiate(this.gameObject, this.transform.position, this.transform.rotation);
+        GameObject positive = GameObject.Instantiate(this.gameObject, this.transform.position, this.transform.rotation);
 
-        left.transform.name = "left";
-        right.transform.name = "right";
+        negative.transform.name = "negative";
+        positive.transform.name = "positive";
         
         // reset left mesh
-        MeshFilter leftMF = left.GetComponent<MeshFilter>();
+        MeshFilter leftMF = negative.GetComponent<MeshFilter>();
         leftMF.mesh = new Mesh();
         // reset right mesh
-        MeshFilter rightMF = right.GetComponent<MeshFilter>();
+        MeshFilter rightMF = positive.GetComponent<MeshFilter>();
         rightMF.mesh = new Mesh();
 
         // give left and right new mesh slicers
-        MeshSlicer leftSlicer = left.GetComponent<MeshSlicer>();
-        MeshSlicer rightSlicer = right.GetComponent<MeshSlicer>();
+        MeshSlicer leftSlicer = negative.GetComponent<MeshSlicer>();
+        MeshSlicer rightSlicer = positive.GetComponent<MeshSlicer>();
 
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
@@ -73,13 +98,23 @@ public class MeshSlicer : MonoBehaviour {
                     rightSlicer.AddTriangle(meshfilter.mesh.vertices[a], 
                                             meshfilter.mesh.vertices[b],
                                             meshfilter.mesh.vertices[c],
-                                            meshfilter.mesh.normals[a]);
+                                            meshfilter.mesh.normals[a],
+                                            meshfilter.mesh.normals[b],
+                                            meshfilter.mesh.normals[c],
+                                            meshfilter.mesh.uv[a],
+                                            meshfilter.mesh.uv[b],
+                                            meshfilter.mesh.uv[c], i);
 
                 } else if (!aPosSide && !bPosSide && !cPosSide) {
                     leftSlicer.AddTriangle(meshfilter.mesh.vertices[a],
                                             meshfilter.mesh.vertices[b],
                                             meshfilter.mesh.vertices[c],
-                                            meshfilter.mesh.normals[a]);
+                                            meshfilter.mesh.normals[a],
+                                            meshfilter.mesh.normals[b],
+                                            meshfilter.mesh.normals[c],
+                                            meshfilter.mesh.uv[a],
+                                            meshfilter.mesh.uv[b],
+                                            meshfilter.mesh.uv[c], i);
 
                 } else {
                     this.CutTriangle(a, aPosSide,
@@ -87,7 +122,7 @@ public class MeshSlicer : MonoBehaviour {
                                         c, cPosSide,
                                         pointOnPlane,
                                         plane,
-                                        leftSlicer, rightSlicer);
+                                        leftSlicer, rightSlicer, i);
                 }
             }
         }
@@ -96,9 +131,12 @@ public class MeshSlicer : MonoBehaviour {
         leftSlicer.DrawInteriorFaces(plane.normal);
         rightSlicer.DrawInteriorFaces(-plane.normal);
 
+        leftSlicer.CommitTriangles();
+        rightSlicer.CommitTriangles();
+
         // update collider mesh for collisions
-        MeshCollider leftMeshCollider = left.GetComponent<MeshCollider>();
-        MeshCollider rightMeshCollider = right.GetComponent<MeshCollider>();
+        MeshCollider leftMeshCollider = negative.GetComponent<MeshCollider>();
+        MeshCollider rightMeshCollider = positive.GetComponent<MeshCollider>();
         leftMeshCollider.sharedMesh = leftSlicer.meshfilter.mesh;
         rightMeshCollider.sharedMesh = rightSlicer.meshfilter.mesh;
 
@@ -112,17 +150,46 @@ public class MeshSlicer : MonoBehaviour {
 
         if (interiorFaceTriangles == null) interiorFaceTriangles = new List<Triangle>();
 
+        // going to put these triangles on a new submesh
+        int submeshIndex = this.meshfilter.mesh.subMeshCount;
+        this.meshfilter.mesh.subMeshCount++;
+        
         // average out interior face center
         this.interiorFaceCenter /= this.interiorFacePoints.Count;
+
+        float maxDistance = -1f;
+        Vector3 furthestPoint = Vector3.zero;
+        for (int i = 0; i < this.interiorFacePoints.Count; i++) {
+            float curr = Vector3.Distance(this.interiorFaceCenter, this.interiorFacePoints[i]);            
+            if (curr > maxDistance) {
+                maxDistance = curr;
+                furthestPoint = interiorFacePoints[i];
+            }
+        }
+
+        Vector2 offset = new Vector2(0.5f, 0.5f);
         
         for (int i = 0; i < this.interiorFacePoints.Count; i+=2) {
-            Triangle t = new Triangle(this.interiorFaceCenter, this.interiorFacePoints[i], this.interiorFacePoints[i+1], normal);
-            interiorFaceTriangles.Add(t);
-            AddTriangle(t);
+            Vector2 uva = (this.interiorFaceCenter - this.interiorFacePoints[i])/maxDistance;
+            Vector2 uvb = (this.interiorFaceCenter - this.interiorFacePoints[i+1])/maxDistance;
+
+            Triangle t = new Triangle(this.interiorFaceCenter, this.interiorFacePoints[i], this.interiorFacePoints[i+1],
+                                      normal, normal, normal,
+                                      offset, uva+offset, uvb+offset);
+
+            interiorFaceTriangles.Add(t); // this is for debugging purposes only
+            AddTriangle(t, submeshIndex);
         }
+
+
+        // add new material for inner surface
+        Material[] mats = this.meshRenderer.materials;
+        Array.Resize<Material>(ref mats, mats.Length+1);
+        mats[mats.Length-1] = this.innerMaterial;
+        this.meshRenderer.materials = mats;
     }
 
-    protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 hitPoint, Plane p, MeshSlicer left, MeshSlicer right) {
+    protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 hitPoint, Plane p, MeshSlicer left, MeshSlicer right, int subMeshIndex) {
         int loneIdx = -1;
         bool lonePlaneSide = false;
         int p1Idx = -1;
@@ -149,10 +216,17 @@ public class MeshSlicer : MonoBehaviour {
         }
         
         // d = (p0-l0).n / l . n
-        Vector3 normal = this.meshfilter.mesh.normals[loneIdx];
         Vector3 p0 = this.meshfilter.mesh.vertices[loneIdx];
+        Vector3 p0normal = this.meshfilter.mesh.normals[loneIdx];
+        Vector3 p0UV = this.meshfilter.mesh.uv[loneIdx];
+
         Vector3 p1 = this.meshfilter.mesh.vertices[p1Idx];
+        Vector3 p1normal = this.meshfilter.mesh.normals[p1Idx];
+        Vector3 p1UV = this.meshfilter.mesh.uv[p1Idx];
+
         Vector3 p2 = this.meshfilter.mesh.vertices[p2Idx];
+        Vector3 p2normal = this.meshfilter.mesh.normals[p2Idx];
+        Vector3 p2UV = this.meshfilter.mesh.uv[p2Idx];
         
         Vector3 p0MinusL0 = (hitPoint-p0);
         
@@ -166,18 +240,24 @@ public class MeshSlicer : MonoBehaviour {
         Vector3 i1 = p0 + line1*d1;
         Vector3 i2 = p0 + line2*d2;
 
-        Triangle t1 = new Triangle(p0, i2, i1, normal);
-        Triangle t2 = new Triangle(p1, i1, i2, normal);
-        Triangle t3 = new Triangle(p1, i2, p2, normal);
+        Vector3 i1Normal = Vector3.Lerp(p0normal, p1normal, d1);
+        Vector2 i1UV = Vector2.Lerp(p0UV, p1UV, d1);
+
+        Vector3 i2Normal = Vector3.Lerp(p0normal, p2normal, d2);
+        Vector2 i2UV = Vector2.Lerp(p0UV, p2UV, d2);
+
+        Triangle t1 = new Triangle(p0, i2, i1, p0normal, i2Normal, i1Normal, p0UV, i2UV, i1UV);
+        Triangle t2 = new Triangle(p1, i1, i2, p1normal, i1Normal, i2Normal, p1UV, i1UV, i2UV);
+        Triangle t3 = new Triangle(p1, i2, p2, p1normal, i2Normal, p2normal, p1UV, i2UV, p2UV);
                                     
         if (lonePlaneSide) {
-            right.AddTriangle(t1);
-            left.AddTriangle(t2);
-            left.AddTriangle(t3);
+            right.AddTriangle(t1, subMeshIndex);
+            left.AddTriangle(t2, subMeshIndex);
+            left.AddTriangle(t3, subMeshIndex);
         } else {
-            left.AddTriangle(t1);
-            right.AddTriangle(t2);
-            right.AddTriangle(t3);
+            left.AddTriangle(t1, subMeshIndex);
+            right.AddTriangle(t2, subMeshIndex);
+            right.AddTriangle(t3, subMeshIndex);
         }
 
         if (right.interiorFacePoints == null) right.interiorFacePoints = new List<Vector3>();
@@ -194,44 +274,68 @@ public class MeshSlicer : MonoBehaviour {
         this.interiorFaceCenter += p;
     }
 
-    void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normal) { 
+    void AddTriangle(   Vector3 a, Vector3 b, Vector3 c,
+                        Vector3 aNormal, Vector3 bNormal, Vector3 cNormal,
+                        Vector2 uva, Vector2 uvb, Vector2 uvc,
+                        int subMeshIndex) { 
+        
+        Vector3 p0 = Vector3.zero;
+        Vector3 p1 = Vector3.zero;
+        Vector3 p2 = Vector3.zero;
 
-        Vector3[] vertices = this.meshfilter.mesh.vertices;
-        Vector3[] normals = this.meshfilter.mesh.normals;
-        int[] triangles = this.meshfilter.mesh.triangles;
+        Vector3 n0 = Vector3.zero;
+        Vector3 n1 = Vector3.zero;
+        Vector3 n2 = Vector3.zero;
 
-        int vertexIndex = vertices.Length-1;
-        int normalIndex = vertices.Length-1;
-        int triangleIndex = triangles.Length-1;
-        Array.Resize<Vector3>(ref vertices, vertices.Length+3);
-        Array.Resize<Vector3>(ref normals, normals.Length+3);
-        Array.Resize<int>(ref triangles, triangles.Length+3);
+        Vector2 uv0 = Vector2.zero;
+        Vector2 uv1 = Vector2.zero;
+        Vector2 uv2 = Vector2.zero;
 
-        if (Vector3.Dot(normal, Vector3.Cross(b-a, c-b)) > 0) {
-            vertices[++vertexIndex] = a;
-            vertices[++vertexIndex] = b;
-            vertices[++vertexIndex] = c;
+        if (Vector3.Dot(aNormal, Vector3.Cross(b-a, c-b)) > 0) {
+            p0 = a;     n0 = aNormal;   uv0 = uva;
+            p1 = b;     n1 = bNormal;   uv1 = uvb;
+            p2 = c;     n2 = cNormal;   uv2 = uvc;
         } else {
-            vertices[++vertexIndex] = a;
-            vertices[++vertexIndex] = c;
-            vertices[++vertexIndex] = b;
+            p0 = a;     n0 = aNormal;   uv0 = uva;
+            p1 = c;     n1 = cNormal;   uv1 = uvc;
+            p2 = b;     n2 = bNormal;   uv2 = uvb;
         }
 
-        normals[++normalIndex] = normal;
-        normals[++normalIndex] = normal;
-        normals[++normalIndex] = normal;
-        
-        triangles[++triangleIndex] = vertexIndex-2;
-        triangles[++triangleIndex] = vertexIndex-1;
-        triangles[++triangleIndex] = vertexIndex;
+        this.vertices.Add(p0);
+        this.vertices.Add(p1);
+        this.vertices.Add(p2);
 
-        meshfilter.mesh.vertices = vertices;
-        meshfilter.mesh.normals = normals;
-        meshfilter.mesh.triangles = triangles;
+        this.normals.Add(n0);
+        this.normals.Add(n1);
+        this.normals.Add(n2);
+
+        this.uvs.Add(uv0);
+        this.uvs.Add(uv1);
+        this.uvs.Add(uv2);
+
+        if (!triangles.ContainsKey(subMeshIndex)) {
+            this.triangles[subMeshIndex] = new List<int>();
+        }
+
+        List<int> subMeshTriangles = this.triangles[subMeshIndex];
+
+        subMeshTriangles.Add(this.vertices.Count-3);
+        subMeshTriangles.Add(this.vertices.Count-2);
+        subMeshTriangles.Add(this.vertices.Count-1);
     }
 
-    public void AddTriangle(Triangle t) {
-        this.AddTriangle(t.a, t.b, t.c, t.normal);
+    void AddTriangle(Triangle t, int subMeshIndex) {
+        this.AddTriangle(t.a, t.b, t.c, t.aNormal, t.bNormal, t.cNormal, t.uva, t.uvb, t.uvc, subMeshIndex);
+    }
+
+    void CommitTriangles () {
+        meshfilter.mesh.vertices = vertices.ToArray();
+        meshfilter.mesh.normals = normals.ToArray();
+        meshfilter.mesh.uv = uvs.ToArray();
+
+        foreach(KeyValuePair<int, List<int>> entry in this.triangles) {
+            this.meshfilter.mesh.SetTriangles(entry.Value.ToArray(), entry.Key);
+        }
     }
 
     private void DrawTriangle(Triangle t) {
@@ -254,7 +358,7 @@ public class MeshSlicer : MonoBehaviour {
             case DebugOption.DRAW_INTERIOR_FACES:
                 if (interiorFaceTriangles != null) {
                 for (int i = 0;  i < interiorFaceTriangles.Count; i++) {
-                    Triangle t = new Triangle(offset + interiorFaceTriangles[i].a, offset + interiorFaceTriangles[i].b, offset + interiorFaceTriangles[i].c, Vector3.zero);
+                    Triangle t = new Triangle(offset + interiorFaceTriangles[i].a, offset + interiorFaceTriangles[i].b, offset + interiorFaceTriangles[i].c);
                     DrawTriangle(t);
                 }
             }

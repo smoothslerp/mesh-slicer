@@ -29,7 +29,7 @@ public class MouseInputDebug : MonoBehaviour {
 
             RaycastHit hit; 
             Ray inputRay = Camera.main.ScreenPointToRay(Input.mousePosition);
-            bool hitSomething = Physics.Raycast(inputRay.origin, inputRay.direction, out hit, length, LayerMask.NameToLayer("Defualt"), QueryTriggerInteraction.Ignore);
+            bool hitSomething = Physics.Raycast(inputRay.origin, inputRay.direction, out hit, length, ~LayerMask.NameToLayer("Default"), QueryTriggerInteraction.Ignore);
 
             // keep updating the start ray so that we have the latest start ray right 
             // before we start hitting something

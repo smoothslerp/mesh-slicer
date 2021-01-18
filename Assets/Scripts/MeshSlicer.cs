@@ -52,8 +52,6 @@ public class MeshSlicer : MonoBehaviour {
     public DebugOption debugOption = DebugOption.NONE;
     public Material innerMaterial;
 
-    public ComputeShader shader;
-
 
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
@@ -63,56 +61,6 @@ public class MeshSlicer : MonoBehaviour {
         this.newNormals = new List<Vector3>();
         this.newUV = new List<Vector2>();
         this.triangles = new Dictionary<int, List<int>>();
-    }
-
-    struct PlaneBufferStruct {
-        Vector3 Normal;
-        Vector3 Point;
-
-        public PlaneBufferStruct(Vector3 Normal, Vector3 Point) {
-            this.Normal = Normal;
-            this.Point = Point;
-            
-        }
-    }
-
-    struct PointBufferStruct {
-        Vector3 Point;
-        public uint Side;
-
-        public PointBufferStruct(Vector3 Point) {
-            this.Point = Point;
-            this.Side = 0;
-        }
-    }
-
-    PointBufferStruct[] RunPlaneSideShader(Plane p, Vector3 pointOnPlane, Vector3[] ps) {
-        
-        PointBufferStruct[] points = new PointBufferStruct[ps.Length];
-        PlaneBufferStruct[] plane = new PlaneBufferStruct[1];
-
-        PointBufferStruct[] output = new PointBufferStruct[points.Length];
-
-        for (int i = 0; i < points.Length; i++) {
-            points[i] = new PointBufferStruct(ps[i]);
-        }
-
-        plane[0] = new PlaneBufferStruct(p.normal, pointOnPlane);
-
-        ComputeBuffer planeBuffer = new ComputeBuffer(1, 24);
-        ComputeBuffer pointBuffer = new ComputeBuffer(points.Length, 16);
-        
-        planeBuffer.SetData(plane);
-        pointBuffer.SetData(points);
-        
-        int kernel = shader.FindKernel("PlaneSide");
-        shader.SetBuffer(kernel, "planeBuffer", planeBuffer);
-        shader.SetBuffer(kernel, "pointBuffer", pointBuffer);
-        
-        shader.Dispatch(kernel, points.Length, 1,1);
-
-        pointBuffer.GetData(output);
-        return output;
     }
 
     public void Slice(Plane plane, Vector3 pointOnPlane) {
@@ -141,23 +89,14 @@ public class MeshSlicer : MonoBehaviour {
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
             
-            Vector3[] test = new Vector3[triangles.Length];
-            for (int j = 0; j < triangles.Length; j+=3) {
-                test[j] = vertices[triangles[j]];
-                test[j+1]= vertices[triangles[j+1]];
-                test[j+2] = vertices[triangles[j+2]];
-            }
-
-            PointBufferStruct[] buffer = RunPlaneSideShader(plane, pointOnPlane, test);
-
             for (int j = 0; j < triangles.Length; j+=3) {
                 int a = triangles[j];
                 int b = triangles[j+1];
                 int c = triangles[j+2];
 
-                bool aPosSide = buffer[j].Side == 1;
-                bool bPosSide = buffer[j+1].Side == 1;
-                bool cPosSide = buffer[j+2].Side == 1;
+                bool aPosSide = plane.GetSide(vertices[a]);
+                bool bPosSide = plane.GetSide(vertices[b]);
+                bool cPosSide = plane.GetSide(vertices[c]);
 
                 if (aPosSide && bPosSide && cPosSide) {
                     rightSlicer.AddTriangle(vertices[a], 

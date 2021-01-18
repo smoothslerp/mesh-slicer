@@ -346,23 +346,20 @@ public class MeshSlicer : MonoBehaviour {
         this.AddTriangle(t.a, t.b, t.c, t.aNormal, t.bNormal, t.cNormal, t.uva, t.uvb, t.uvc, subMeshIndex);
     }
 
-    void AddTriangle(   Vector3 a, Vector3 b, Vector3 c,
-                        Vector3 aNormal, Vector3 bNormal, Vector3 cNormal,
-                        Vector2 uva, Vector2 uvb, Vector2 uvc,
-                        int subMeshIndex) { 
+    void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 na, Vector3 nb, Vector3 nc, Vector2 uva, Vector2 uvb, Vector2 uvc, int subMeshIndex) { 
         
         Vector3 p0 = Vector3.zero;  Vector3 p1 = Vector3.zero;  Vector3 p2 = Vector3.zero;
         Vector3 n0 = Vector3.zero;  Vector3 n1 = Vector3.zero;  Vector3 n2 = Vector3.zero;
         Vector2 uv0 = Vector2.zero; Vector2 uv1 = Vector2.zero; Vector2 uv2 = Vector2.zero;
 
-        if (Vector3.Dot(aNormal, Vector3.Cross(b-a, c-b)) > 0) {
-            p0 = a;     n0 = aNormal;   uv0 = uva;
-            p1 = b;     n1 = bNormal;   uv1 = uvb;
-            p2 = c;     n2 = cNormal;   uv2 = uvc;
+        if (Vector3.Dot(na, Vector3.Cross(b-a, c-b)) > 0) {
+            p0 = a;     n0 = na;   uv0 = uva;
+            p1 = b;     n1 = nb;   uv1 = uvb;
+            p2 = c;     n2 = nc;   uv2 = uvc;
         } else {
-            p0 = a;     n0 = aNormal;   uv0 = uva;
-            p1 = c;     n1 = cNormal;   uv1 = uvc;
-            p2 = b;     n2 = bNormal;   uv2 = uvb;
+            p0 = a;     n0 = na;   uv0 = uva;
+            p1 = c;     n1 = nc;   uv1 = uvc;
+            p2 = b;     n2 = nb;   uv2 = uvb;
         }
 
         this.newVertices.Add(p0);  this.newVertices.Add(p1);  this.newVertices.Add(p2);

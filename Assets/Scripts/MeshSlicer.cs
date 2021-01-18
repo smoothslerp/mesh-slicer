@@ -1,10 +1,9 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 using System;
-using System.Diagnostics;
 
 public class MeshSlicer : MonoBehaviour {
-    public class Triangle {
+    public struct Triangle {
         public Vector3 a;
         public Vector3 b;
         public Vector3 c;
@@ -45,23 +44,75 @@ public class MeshSlicer : MonoBehaviour {
     MeshFilter meshfilter;
     Renderer meshRenderer;
 
-    List<Vector3> vertices;
-    List<Vector3> normals;
-    List<Vector2> uvs;
+    List<Vector3> newVertices;
+    List<Vector3> newNormals;
+    List<Vector2> newUV;
     Dictionary<int, List<int>> triangles;
 
     public DebugOption debugOption = DebugOption.NONE;
     public Material innerMaterial;
+
+    public ComputeShader shader;
 
 
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
         this.meshRenderer = this.GetComponent<MeshRenderer>();
 
-        this.vertices = new List<Vector3>();
-        this.normals = new List<Vector3>();
-        this.uvs = new List<Vector2>();
+        this.newVertices = new List<Vector3>();
+        this.newNormals = new List<Vector3>();
+        this.newUV = new List<Vector2>();
         this.triangles = new Dictionary<int, List<int>>();
+    }
+
+    struct PlaneBufferStruct {
+        Vector3 Normal;
+        Vector3 Point;
+
+        public PlaneBufferStruct(Vector3 Normal, Vector3 Point) {
+            this.Normal = Normal;
+            this.Point = Point;
+            
+        }
+    }
+
+    struct PointBufferStruct {
+        Vector3 Point;
+        public uint Side;
+
+        public PointBufferStruct(Vector3 Point) {
+            this.Point = Point;
+            this.Side = 0;
+        }
+    }
+
+    PointBufferStruct[] RunPlaneSideShader(Plane p, Vector3 pointOnPlane, Vector3[] ps) {
+        
+        PointBufferStruct[] points = new PointBufferStruct[ps.Length];
+        PlaneBufferStruct[] plane = new PlaneBufferStruct[1];
+
+        PointBufferStruct[] output = new PointBufferStruct[points.Length];
+
+        for (int i = 0; i < points.Length; i++) {
+            points[i] = new PointBufferStruct(ps[i]);
+        }
+
+        plane[0] = new PlaneBufferStruct(p.normal, pointOnPlane);
+
+        ComputeBuffer planeBuffer = new ComputeBuffer(1, 24);
+        ComputeBuffer pointBuffer = new ComputeBuffer(points.Length, 16);
+        
+        planeBuffer.SetData(plane);
+        pointBuffer.SetData(points);
+        
+        int kernel = shader.FindKernel("PlaneSide");
+        shader.SetBuffer(kernel, "planeBuffer", planeBuffer);
+        shader.SetBuffer(kernel, "pointBuffer", pointBuffer);
+        
+        shader.Dispatch(kernel, points.Length, 1,1);
+
+        pointBuffer.GetData(output);
+        return output;
     }
 
     public void Slice(Plane plane, Vector3 pointOnPlane) {
@@ -82,39 +133,53 @@ public class MeshSlicer : MonoBehaviour {
         // give left and right new mesh slicers
         MeshSlicer leftSlicer = negative.GetComponent<MeshSlicer>();
         MeshSlicer rightSlicer = positive.GetComponent<MeshSlicer>();
+
+        Vector3[] vertices = meshfilter.mesh.vertices;
+        Vector3[] normals = meshfilter.mesh.normals;
+        Vector2[] uv = meshfilter.mesh.uv;
+
         for (int i = 0; i < this.meshfilter.mesh.subMeshCount; i++) {
             int[] triangles = this.meshfilter.mesh.GetTriangles(i);
+            
+            Vector3[] test = new Vector3[triangles.Length];
+            for (int j = 0; j < triangles.Length; j+=3) {
+                test[j] = vertices[triangles[j]];
+                test[j+1]= vertices[triangles[j+1]];
+                test[j+2] = vertices[triangles[j+2]];
+            }
+
+            PointBufferStruct[] buffer = RunPlaneSideShader(plane, pointOnPlane, test);
 
             for (int j = 0; j < triangles.Length; j+=3) {
                 int a = triangles[j];
                 int b = triangles[j+1];
                 int c = triangles[j+2];
 
-                bool aPosSide = plane.GetSide(meshfilter.mesh.vertices[a]);
-                bool bPosSide = plane.GetSide(meshfilter.mesh.vertices[b]);
-                bool cPosSide = plane.GetSide(meshfilter.mesh.vertices[c]);
+                bool aPosSide = buffer[j].Side == 1;
+                bool bPosSide = buffer[j+1].Side == 1;
+                bool cPosSide = buffer[j+2].Side == 1;
 
                 if (aPosSide && bPosSide && cPosSide) {
-                    rightSlicer.AddTriangle(meshfilter.mesh.vertices[a], 
-                                            meshfilter.mesh.vertices[b],
-                                            meshfilter.mesh.vertices[c],
-                                            meshfilter.mesh.normals[a],
-                                            meshfilter.mesh.normals[b],
-                                            meshfilter.mesh.normals[c],
-                                            meshfilter.mesh.uv[a],
-                                            meshfilter.mesh.uv[b],
-                                            meshfilter.mesh.uv[c], i);
+                    rightSlicer.AddTriangle(vertices[a], 
+                                            vertices[b],
+                                            vertices[c],
+                                            normals[a],
+                                            normals[b],
+                                            normals[c],
+                                            uv[a],
+                                            uv[b],
+                                            uv[c], i);
 
                 } else if (!aPosSide && !bPosSide && !cPosSide) {
-                    leftSlicer.AddTriangle(meshfilter.mesh.vertices[a],
-                                            meshfilter.mesh.vertices[b],
-                                            meshfilter.mesh.vertices[c],
-                                            meshfilter.mesh.normals[a],
-                                            meshfilter.mesh.normals[b],
-                                            meshfilter.mesh.normals[c],
-                                            meshfilter.mesh.uv[a],
-                                            meshfilter.mesh.uv[b],
-                                            meshfilter.mesh.uv[c], i);
+                    leftSlicer.AddTriangle(vertices[a],
+                                            vertices[b],
+                                            vertices[c],
+                                            normals[a],
+                                            normals[b],
+                                            normals[c],
+                                            uv[a],
+                                            uv[b],
+                                            uv[c], i);
 
                 } else {
                     this.CutTriangle(a, aPosSide,
@@ -181,7 +246,6 @@ public class MeshSlicer : MonoBehaviour {
             AddTriangle(t, submeshIndex);
         }
 
-
         // add new material for inner surface
         Material[] mats = this.meshRenderer.materials;
         Array.Resize<Material>(ref mats, mats.Length+1);
@@ -190,6 +254,10 @@ public class MeshSlicer : MonoBehaviour {
     }
 
     protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 hitPoint, Plane p, MeshSlicer left, MeshSlicer right, int subMeshIndex) {
+        Vector3[] vertices = meshfilter.mesh.vertices;
+        Vector3[] normals = meshfilter.mesh.normals;
+        Vector2[] uv = meshfilter.mesh.uv;
+
         int loneIdx = -1;
         bool lonePlaneSide = false;
         int p1Idx = -1;
@@ -216,17 +284,17 @@ public class MeshSlicer : MonoBehaviour {
         }
         
         // d = (p0-l0).n / l . n
-        Vector3 p0 = this.meshfilter.mesh.vertices[loneIdx];
-        Vector3 p0normal = this.meshfilter.mesh.normals[loneIdx];
-        Vector3 p0UV = this.meshfilter.mesh.uv[loneIdx];
+        Vector3 p0 = vertices[loneIdx];
+        Vector3 p0normal = normals[loneIdx];
+        Vector3 p0UV = uv[loneIdx];
 
-        Vector3 p1 = this.meshfilter.mesh.vertices[p1Idx];
-        Vector3 p1normal = this.meshfilter.mesh.normals[p1Idx];
-        Vector3 p1UV = this.meshfilter.mesh.uv[p1Idx];
+        Vector3 p1 = vertices[p1Idx];
+        Vector3 p1normal = normals[p1Idx];
+        Vector3 p1UV = uv[p1Idx];
 
-        Vector3 p2 = this.meshfilter.mesh.vertices[p2Idx];
-        Vector3 p2normal = this.meshfilter.mesh.normals[p2Idx];
-        Vector3 p2UV = this.meshfilter.mesh.uv[p2Idx];
+        Vector3 p2 = vertices[p2Idx];
+        Vector3 p2normal = normals[p2Idx];
+        Vector3 p2UV = uv[p2Idx];
         
         Vector3 p0MinusL0 = (hitPoint-p0);
         
@@ -297,34 +365,34 @@ public class MeshSlicer : MonoBehaviour {
             p2 = b;     n2 = bNormal;   uv2 = uvb;
         }
 
-        this.vertices.Add(p0);  this.vertices.Add(p1);  this.vertices.Add(p2);
-        this.normals.Add(n0);   this.normals.Add(n1);   this.normals.Add(n2);
-        this.uvs.Add(uv0);      this.uvs.Add(uv1);      this.uvs.Add(uv2);
+        this.newVertices.Add(p0);  this.newVertices.Add(p1);  this.newVertices.Add(p2);
+        this.newNormals.Add(n0);   this.newNormals.Add(n1);   this.newNormals.Add(n2);
+        this.newUV.Add(uv0);      this.newUV.Add(uv1);      this.newUV.Add(uv2);
 
         if (!triangles.ContainsKey(subMeshIndex)) {
             this.triangles[subMeshIndex] = new List<int>();
         }
 
         List<int> subMeshTriangles = this.triangles[subMeshIndex];
-        subMeshTriangles.Add(this.vertices.Count-3);
-        subMeshTriangles.Add(this.vertices.Count-2);
-        subMeshTriangles.Add(this.vertices.Count-1);
+        subMeshTriangles.Add(this.newVertices.Count-3);
+        subMeshTriangles.Add(this.newVertices.Count-2);
+        subMeshTriangles.Add(this.newVertices.Count-1);
     }
 
     void CommitTriangles () {
-        meshfilter.mesh.vertices = vertices.ToArray();
-        meshfilter.mesh.normals = normals.ToArray();
-        meshfilter.mesh.uv = uvs.ToArray();
+        meshfilter.mesh.vertices = newVertices.ToArray();
+        meshfilter.mesh.normals = newNormals.ToArray();
+        meshfilter.mesh.uv = newUV.ToArray();
 
         foreach(KeyValuePair<int, List<int>> entry in this.triangles) {
             this.meshfilter.mesh.SetTriangles(entry.Value.ToArray(), entry.Key);
         }
 
         // clear out
-        this.vertices = new List<Vector3>();
-        this.normals = new List<Vector3>();
+        this.newVertices = new List<Vector3>();
+        this.newNormals = new List<Vector3>();
         this.triangles = new Dictionary<int, List<int>>();
-        this.uvs = new List<Vector2>();
+        this.newUV = new List<Vector2>();
     }
 
     private void DrawTriangle(Triangle t) {

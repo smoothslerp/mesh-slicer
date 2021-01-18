@@ -1,0 +1,50 @@
+﻿#pragma kernel pixelCalc
+
+// for each of 1024x1024 pixels of the texture there will be one instance of this code runned
+// this kernel does the following:
+// 1. 	determine the fractal space coordinate of the point this pixel covers
+// 		this is done because we pass fractal space borders to the "rect" structured buffer, and that rect is being projected to the texture
+// 2. 	set pixel color depending on the amount of iterations required to move the point out of R = 2 circle
+
+RWTexture2D<float4> textureOut;				// this texture's pixels will be set by our kernel, and this texture will be rendered, because we linked it to the Image (see cpu side code)
+RWStructuredBuffer<double> rect;			// this structured buffer is used to pass fractal space border coordinates to the compute buffer
+RWStructuredBuffer<float4> colors;			// this buffer is set once at init, it contains the colors to paint the pixels depending on the numebr of iterations
+
+[numthreads(32,32,1)]						// this defines the number of threads in the group (see more comprehensive explanaitions in the cpu side code)
+void pixelCalc (uint3 id : SV_DispatchThreadID){
+	float k = 0.0009765625;				// this is simply 1 / 1024
+	double dx, dy;
+	double p, q;						// initial point coordinates
+	double x, y, xnew, ynew, d = 0;		// current coordinates, new coordinates, distance from (0, 0)
+	uint itn = 0;						// number of iterations
+	dx = rect[2] - rect[0];
+	dy = rect[3] - rect[1];
+	p = rect[0] + ((int)id.x) * k * dx;			// divide by 256, to shrink [-512, 512) space to [-2, 2)
+	q = rect[1] + ((int)id.y) * k * dy;
+	x = p;
+	y = q;
+	while (itn < 255 && d < 4){			// this is a trivial fractal drawig loop, we just count the number of iterations required to move the point away
+		xnew = x * x - y * y + p;
+		ynew = 2 * x * y + q;
+		x = xnew;
+		y = ynew;
+		d = x * x + y * y;
+		itn++;
+	}
+	textureOut[id.xy] = colors[itn];
+	/*
+
+	note:
+	id parameter contains the three dimentional index of the thread
+	we decided to have 1024 x 1024 threads to have one thread per 1024 x 1024 pixels of our texture
+	so, number of the thread is also a number of the pixel
+	id.xy is two dimentional index of the pixel
+	instead we could use this form:
+	textureOut[int2(id.x, id.y)] to reference the pixel the thread is responsible of
+
+	also:
+	In this particular example I used double type to increase the depth of fractal zooming, but still precision can be reahed after 15 orders of zooming
+	But float type would work faster, so if you want higher performance - don't use the types as small as you can afford for your data
+
+	*/
+}

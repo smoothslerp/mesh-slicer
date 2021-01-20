@@ -71,14 +71,14 @@ public class MeshSlicer : MonoBehaviour {
         negative.transform.name = "negative";
         positive.transform.name = "positive";
         
-        // reset left mesh
+        // reset negative mesh
         MeshFilter negativeMF = negative.GetComponent<MeshFilter>();
         negativeMF.mesh = new Mesh();
-        // reset right mesh
+        // reset positive mesh
         MeshFilter positiveMF = positive.GetComponent<MeshFilter>();
         positiveMF.mesh = new Mesh();
 
-        // give left and right new mesh slicers
+        // give negative and positive new mesh slicers
         MeshSlicer negativeSlicer = negative.GetComponent<MeshSlicer>();
         MeshSlicer positiveSlicer = positive.GetComponent<MeshSlicer>();
 
@@ -178,7 +178,7 @@ public class MeshSlicer : MonoBehaviour {
         this.meshRenderer.materials = mats;
     }
 
-    protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 hitPoint, Plane p, MeshSlicer left, MeshSlicer right, int subMeshIndex) {
+    protected void CutTriangle(int aIdx, bool aPlaneSide, int bIdx, bool bPlaneSide, int cIdx, bool cPlaneSide, Vector3 hitPoint, Plane p, MeshSlicer negative, MeshSlicer positive, int subMeshIndex) {
         Vector3[] vertices = meshfilter.mesh.vertices;
         Vector3[] normals = meshfilter.mesh.normals;
         Vector2[] uv = meshfilter.mesh.uv;
@@ -244,22 +244,22 @@ public class MeshSlicer : MonoBehaviour {
         Triangle t3 = new Triangle(p1, i2, p2, p1normal, i2Normal, p2normal, p1UV, i2UV, p2UV);
                                     
         if (lonePlaneSide) {
-            right.AddTriangle(t1, subMeshIndex);
-            left.AddTriangle(t2, subMeshIndex);
-            left.AddTriangle(t3, subMeshIndex);
+            positive.AddTriangle(t1, subMeshIndex);
+            negative.AddTriangle(t2, subMeshIndex);
+            negative.AddTriangle(t3, subMeshIndex);
         } else {
-            left.AddTriangle(t1, subMeshIndex);
-            right.AddTriangle(t2, subMeshIndex);
-            right.AddTriangle(t3, subMeshIndex);
+            negative.AddTriangle(t1, subMeshIndex);
+            positive.AddTriangle(t2, subMeshIndex);
+            positive.AddTriangle(t3, subMeshIndex);
         }
 
-        if (right.interiorFacePoints == null) right.interiorFacePoints = new List<Vector3>();
-        right.AddToInteriorFacePoints(i1);
-        right.AddToInteriorFacePoints(i2);
+        if (positive.interiorFacePoints == null) positive.interiorFacePoints = new List<Vector3>();
+        positive.AddToInteriorFacePoints(i1);
+        positive.AddToInteriorFacePoints(i2);
 
-        if (left.interiorFacePoints == null) left.interiorFacePoints = new List<Vector3>();
-        left.AddToInteriorFacePoints(i1);
-        left.AddToInteriorFacePoints(i2);
+        if (negative.interiorFacePoints == null) negative.interiorFacePoints = new List<Vector3>();
+        negative.AddToInteriorFacePoints(i1);
+        negative.AddToInteriorFacePoints(i2);
     }
 
     public void AddToInteriorFacePoints(Vector3 p) {

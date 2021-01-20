@@ -72,15 +72,15 @@ public class MeshSlicer : MonoBehaviour {
         positive.transform.name = "positive";
         
         // reset left mesh
-        MeshFilter leftMF = negative.GetComponent<MeshFilter>();
-        leftMF.mesh = new Mesh();
+        MeshFilter negativeMF = negative.GetComponent<MeshFilter>();
+        negativeMF.mesh = new Mesh();
         // reset right mesh
-        MeshFilter rightMF = positive.GetComponent<MeshFilter>();
-        rightMF.mesh = new Mesh();
+        MeshFilter positiveMF = positive.GetComponent<MeshFilter>();
+        positiveMF.mesh = new Mesh();
 
         // give left and right new mesh slicers
-        MeshSlicer leftSlicer = negative.GetComponent<MeshSlicer>();
-        MeshSlicer rightSlicer = positive.GetComponent<MeshSlicer>();
+        MeshSlicer negativeSlicer = negative.GetComponent<MeshSlicer>();
+        MeshSlicer positiveSlicer = positive.GetComponent<MeshSlicer>();
 
         Vector3[] vertices = meshfilter.mesh.vertices;
         Vector3[] normals = meshfilter.mesh.normals;
@@ -99,7 +99,7 @@ public class MeshSlicer : MonoBehaviour {
                 bool cPosSide = plane.GetSide(vertices[c]);
 
                 if (aPosSide && bPosSide && cPosSide) {
-                    rightSlicer.AddTriangle(vertices[a], 
+                    positiveSlicer.AddTriangle(vertices[a], 
                                             vertices[b],
                                             vertices[c],
                                             normals[a],
@@ -110,7 +110,7 @@ public class MeshSlicer : MonoBehaviour {
                                             uv[c], i);
 
                 } else if (!aPosSide && !bPosSide && !cPosSide) {
-                    leftSlicer.AddTriangle(vertices[a],
+                    negativeSlicer.AddTriangle(vertices[a],
                                             vertices[b],
                                             vertices[c],
                                             normals[a],
@@ -126,23 +126,23 @@ public class MeshSlicer : MonoBehaviour {
                                         c, cPosSide,
                                         pointOnPlane,
                                         plane,
-                                        leftSlicer, rightSlicer, i);
+                                        negativeSlicer, positiveSlicer, i);
                 }
             }
         }
 
         // draw interior faces
-        leftSlicer.DrawInteriorFaces(plane.normal);
-        rightSlicer.DrawInteriorFaces(-plane.normal);
+        negativeSlicer.DrawInteriorFaces(plane.normal);
+        positiveSlicer.DrawInteriorFaces(-plane.normal);
 
-        leftSlicer.CommitTriangles();
-        rightSlicer.CommitTriangles();
+        negativeSlicer.CommitTriangles();
+        positiveSlicer.CommitTriangles();
 
         // update collider mesh for collisions
-        MeshCollider leftMeshCollider = negative.GetComponent<MeshCollider>();
-        MeshCollider rightMeshCollider = positive.GetComponent<MeshCollider>();
-        leftMeshCollider.sharedMesh = leftSlicer.meshfilter.mesh;
-        rightMeshCollider.sharedMesh = rightSlicer.meshfilter.mesh;
+        MeshCollider negativeMeshCollider = negative.GetComponent<MeshCollider>();
+        MeshCollider positiveMeshCollider = positive.GetComponent<MeshCollider>();
+        negativeMeshCollider.sharedMesh = negativeSlicer.meshfilter.mesh;
+        positiveMeshCollider.sharedMesh = positiveSlicer.meshfilter.mesh;
 
         // destroy current game object
         Destroy(this.gameObject);
@@ -161,25 +161,11 @@ public class MeshSlicer : MonoBehaviour {
         // average out interior face center
         this.interiorFaceCenter /= this.interiorFacePoints.Count;
 
-        float maxDistance = -1f;
-        Vector3 furthestPoint = Vector3.zero;
-        for (int i = 0; i < this.interiorFacePoints.Count; i++) {
-            float curr = Vector3.Distance(this.interiorFaceCenter, this.interiorFacePoints[i]);            
-            if (curr > maxDistance) {
-                maxDistance = curr;
-                furthestPoint = interiorFacePoints[i];
-            }
-        }
-
-        Vector2 offset = new Vector2(0.5f, 0.5f);
-        
+        Vector2 interiorUV = new Vector2(0.5f, 0.5f);
         for (int i = 0; i < this.interiorFacePoints.Count; i+=2) {
-            Vector2 uva = (this.interiorFaceCenter - this.interiorFacePoints[i])/maxDistance;
-            Vector2 uvb = (this.interiorFaceCenter - this.interiorFacePoints[i+1])/maxDistance;
-
             Triangle t = new Triangle(this.interiorFaceCenter, this.interiorFacePoints[i], this.interiorFacePoints[i+1],
                                       normal, normal, normal,
-                                      offset, uva+offset, uvb+offset);
+                                      interiorUV, interiorUV, interiorUV);
 
             interiorFaceTriangles.Add(t); // this is for debugging purposes only
             AddTriangle(t, submeshIndex);

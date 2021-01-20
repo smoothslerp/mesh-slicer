@@ -182,25 +182,25 @@ public class MeshSlicer : MonoBehaviour {
         Vector3[] normals = meshfilter.mesh.normals;
         Vector2[] uv = meshfilter.mesh.uv;
 
-        int loneIdx = -1;
         bool lonePlaneSide = false;
+        int p0Idx = -1;
         int p1Idx = -1;
         int p2Idx = -1;
 
         if (aPlaneSide == bPlaneSide) {
-            loneIdx = cIdx;
+            p0Idx = cIdx;
             lonePlaneSide = cPlaneSide;
 
             p1Idx = aIdx;
             p2Idx = bIdx;
         } else if (aPlaneSide == cPlaneSide) {
-            loneIdx = bIdx;
+            p0Idx = bIdx;
             lonePlaneSide = bPlaneSide;
 
             p1Idx = aIdx;
             p2Idx = cIdx;
         } else if (bPlaneSide == cPlaneSide) {
-            loneIdx = aIdx;
+            p0Idx = aIdx;
             lonePlaneSide = aPlaneSide;
 
             p1Idx = bIdx;
@@ -208,9 +208,9 @@ public class MeshSlicer : MonoBehaviour {
         }
         
         // d = (p0-l0).n / l . n
-        Vector3 p0 = vertices[loneIdx];
-        Vector3 p0normal = normals[loneIdx];
-        Vector3 p0UV = uv[loneIdx];
+        Vector3 p0 = vertices[p0Idx];
+        Vector3 p0normal = normals[p0Idx];
+        Vector3 p0UV = uv[p0Idx];
 
         Vector3 p1 = vertices[p1Idx];
         Vector3 p1normal = normals[p1Idx];

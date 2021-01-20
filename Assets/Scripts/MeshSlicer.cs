@@ -47,11 +47,10 @@ public class MeshSlicer : MonoBehaviour {
     List<Vector3> newVertices;
     List<Vector3> newNormals;
     List<Vector2> newUV;
-    Dictionary<int, List<int>> triangles;
+    Dictionary<int, List<int>> newTriangles;
 
     public DebugOption debugOption = DebugOption.NONE;
     public Material innerMaterial;
-
 
     void OnEnable() {
         this.meshfilter = this.GetComponent<MeshFilter>();
@@ -60,7 +59,7 @@ public class MeshSlicer : MonoBehaviour {
         this.newVertices = new List<Vector3>();
         this.newNormals = new List<Vector3>();
         this.newUV = new List<Vector2>();
-        this.triangles = new Dictionary<int, List<int>>();
+        this.newTriangles = new Dictionary<int, List<int>>();
     }
 
     public void Slice(Plane plane, Vector3 pointOnPlane) {
@@ -291,11 +290,11 @@ public class MeshSlicer : MonoBehaviour {
         this.newNormals.Add(n0);   this.newNormals.Add(n1);   this.newNormals.Add(n2);
         this.newUV.Add(uv0);      this.newUV.Add(uv1);      this.newUV.Add(uv2);
 
-        if (!triangles.ContainsKey(subMeshIndex)) {
-            this.triangles[subMeshIndex] = new List<int>();
+        if (!newTriangles.ContainsKey(subMeshIndex)) {
+            this.newTriangles[subMeshIndex] = new List<int>();
         }
 
-        List<int> subMeshTriangles = this.triangles[subMeshIndex];
+        List<int> subMeshTriangles = this.newTriangles[subMeshIndex];
         subMeshTriangles.Add(this.newVertices.Count-3);
         subMeshTriangles.Add(this.newVertices.Count-2);
         subMeshTriangles.Add(this.newVertices.Count-1);
@@ -306,14 +305,14 @@ public class MeshSlicer : MonoBehaviour {
         meshfilter.mesh.normals = newNormals.ToArray();
         meshfilter.mesh.uv = newUV.ToArray();
 
-        foreach(KeyValuePair<int, List<int>> entry in this.triangles) {
+        foreach(KeyValuePair<int, List<int>> entry in this.newTriangles) {
             this.meshfilter.mesh.SetTriangles(entry.Value.ToArray(), entry.Key);
         }
 
         // clear out
         this.newVertices = new List<Vector3>();
         this.newNormals = new List<Vector3>();
-        this.triangles = new Dictionary<int, List<int>>();
+        this.newTriangles = new Dictionary<int, List<int>>();
         this.newUV = new List<Vector2>();
     }
 
